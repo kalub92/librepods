@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,9 +34,11 @@ fun PrivacyPolicyPage(
             shape = RoundedCornerShape(42.dp)
         )
     ) {
+        // button pinned outside the scroll area: D-pad/cursor-only devices can't always scroll to it
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
+                .weight(1f)
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -181,17 +184,17 @@ fun PrivacyPolicyPage(
                 style = MaterialTheme.typography.bodyMedium
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+        }
             Button(
                 onClick = onForward,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
             ) {
                 Text(
                     text = stringResource(R.string.i_agree),
                     style = MaterialTheme.typography.labelMediumEmphasized
                 )
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

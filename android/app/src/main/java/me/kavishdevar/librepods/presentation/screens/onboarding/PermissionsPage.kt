@@ -136,10 +136,16 @@ fun PermissionsPage(
             shape = RoundedCornerShape(42.dp)
         )
     ) {
+        // nav row pinned outside the scroll area: D-pad/cursor-only devices can't always scroll to it
         Column(
             modifier = Modifier
                 .padding(16.dp)
-                .fillMaxSize()
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -292,7 +298,7 @@ fun PermissionsPage(
                 },
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+        }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

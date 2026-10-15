@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,9 +32,16 @@ fun NotSupportedPage(
             shape = RoundedCornerShape(42.dp)
         )
     ) {
+        // action pinned outside the scroll area: D-pad/cursor-only devices can't always scroll to it
         Column(
             modifier = Modifier
-                .padding(horizontal = 16.dp)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -47,6 +55,7 @@ fun NotSupportedPage(
             )
             DeviceInfoCard()
             AppInfoCard()
+        }
 
             StyledListItem(
                 name = stringResource(R.string.bypass_compatibility_check),
