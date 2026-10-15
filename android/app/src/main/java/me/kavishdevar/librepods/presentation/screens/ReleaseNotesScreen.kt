@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -361,6 +362,15 @@ fun ReleaseNotesScreen(
                         }
                     }
                 }
+            }
+            // the carousel's last card is only reachable by swiping; give cursor/D-pad devices a way out
+            Button(
+                onClick = releaseNotesShown,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Text(text = "Continue")
             }
             Spacer(modifier = Modifier.height(bottomPadding))
         }
