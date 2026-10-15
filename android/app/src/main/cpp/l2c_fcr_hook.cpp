@@ -57,11 +57,37 @@ static tBTA_STATUS (*original_BTA_DmSetLocalDiRecord)(tSDP_DI_RECORD *, uint32_t
 
 static std::atomic<bool> enableSdpHook(false);
 
+// enough to cover tL2C_CCB up to ertm_info.allowed_modes on known builds (0xE1 on Android 11 armv7);
+// ccbs live in a static pool, so over-reading the last one stays in mapped .bss
+static constexpr size_t kCcbScanSize = 512;
+
 uint8_t fake_l2c_fcr_chk_chan_modes(void *p_ccb) {
     LOGI("fake_l2c_fcr_chk_chan_modes called");
     uint8_t orig = 0;
+    uint8_t before[kCcbScanSize];
+    if (p_ccb) memcpy(before, p_ccb, kCcbScanSize);
     if (original_l2c_fcr_chk_chan_modes)
         orig = original_l2c_fcr_chk_chan_modes(p_ccb);
+
+    // The original just cleared ERTM (0x08) / streaming (0x10) from ertm_info.allowed_modes
+    // because the AirPods don't advertise them, leaving 0. Faking the return value isn't
+    // enough where the check is also inlined elsewhere (Android 11): it fails again and the
+    // channel is torn down. Allow basic mode (0x01) instead, so config falls back to it.
+    // Locate the field by diffing rather than hardcoding a per-build offset.
+    if (!orig && p_ccb) {
+        auto *ccb = static_cast<uint8_t *>(p_ccb);
+        size_t changed = 0, idx = 0;
+        for (size_t i = 0; i < kCcbScanSize; ++i) {
+            if (before[i] != ccb[i]) {
+                ++changed;
+                idx = i;
+            }
+        }
+        if (changed == 1 && ccb[idx] == 0 && (before[idx] & ~0x19) == 0) {
+            ccb[idx] = 0x01;
+            LOGI("fake_l2c_fcr_chk_chan_modes: allowed_modes @+0x%zx 0x%02x -> basic", idx, before[idx]);
+        }
+    }
 
     LOGI("fake_l2c_fcr_chk_chan_modes: orig = %d, returning 1", orig);
     return 1;
