@@ -65,7 +65,7 @@ fun LibrePodsTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        m3eEnabled -> {
+        m3eEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }

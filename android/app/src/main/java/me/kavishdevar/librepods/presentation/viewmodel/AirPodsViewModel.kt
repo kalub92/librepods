@@ -28,6 +28,7 @@ import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -362,8 +363,8 @@ class AirPodsViewModel(
             addAction(AirPodsNotifications.AIRPODS_INFORMATION_UPDATED)
         }
 
-        appContext.registerReceiver(
-            broadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED
+        ContextCompat.registerReceiver(
+            appContext, broadcastReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED
         )
     }
 

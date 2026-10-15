@@ -1,6 +1,7 @@
 package me.kavishdevar.librepods.presentation.screens.onboarding
 
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -81,7 +82,10 @@ fun PermissionsPage(
     }
 
 
-    val notificationPermissionState = rememberPermissionState("android.permission.POST_NOTIFICATIONS") {
+    val notificationPermissionState = rememberPermissionState(
+        // POST_NOTIFICATIONS doesn't exist below 33; BLUETOOTH is install-time granted there
+        if (Build.VERSION.SDK_INT >= 33) "android.permission.POST_NOTIFICATIONS" else "android.permission.BLUETOOTH"
+    ) {
         if (grantingAll) {
             if (!phonePermissionState.allPermissionsGranted) phonePermissionState.launchMultiplePermissionRequest()
             else if (!canDrawOverlays.value) canDrawOverlays.value = Settings.canDrawOverlays(context)
@@ -90,12 +94,15 @@ fun PermissionsPage(
 
 
     val bluetoothPermissionsState = rememberMultiplePermissionsState(
-        listOf(
+        if (Build.VERSION.SDK_INT >= 31) listOf(
             "android.permission.BLUETOOTH_CONNECT",
             "android.permission.BLUETOOTH_SCAN",
             "android.permission.BLUETOOTH",
             "android.permission.BLUETOOTH_ADMIN",
             "android.permission.BLUETOOTH_ADVERTISE"
+        ) else listOf(
+            "android.permission.BLUETOOTH",
+            "android.permission.BLUETOOTH_ADMIN"
         )
     ) {
         if (grantingAll) {

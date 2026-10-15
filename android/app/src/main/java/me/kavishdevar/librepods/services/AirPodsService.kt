@@ -58,6 +58,7 @@ import android.os.ParcelUuid
 import android.os.UserHandle
 import android.provider.Settings
 import android.telecom.TelecomManager
+import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
@@ -227,7 +228,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     val packetLogsFlow: StateFlow<Set<String>> get() = _packetLogsFlow
 
     private lateinit var telephonyManager: TelephonyManager
-    private lateinit var phoneStateListener: TelephonyCallback
+    // TelephonyCallback on 31+, PhoneStateListener below
+    private var phoneStateListener: Any? = null
     private val maxLogEntries = 1000
     private val inMemoryLogs = mutableSetOf<String>()
 
@@ -595,8 +597,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         macAddress = sharedPreferences.getString("mac_address", "") ?: ""
 
         telephonyManager = getSystemService(TELEPHONY_SERVICE) as TelephonyManager
-        phoneStateListener = object: TelephonyCallback(), TelephonyCallback.CallStateListener {
-            override fun onCallStateChanged(state: Int) {
+        val onCallState = { state: Int ->
                 when (state) {
                     TelephonyManager.CALL_STATE_RINGING -> {
                         val leAvailableForAudio =
@@ -627,10 +628,19 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                         gestureDetector?.stopDetection()
                     }
                 }
-            }
         }
         if (checkSelfPermission("android.permission.READ_PHONE_STATE") == PackageManager.PERMISSION_GRANTED) {
-            telephonyManager.registerTelephonyCallback(mainExecutor, phoneStateListener)
+            phoneStateListener = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                    override fun onCallStateChanged(state: Int) = onCallState(state)
+                }.also { telephonyManager.registerTelephonyCallback(mainExecutor, it) }
+            } else {
+                @Suppress("DEPRECATION")
+                object : PhoneStateListener(mainExecutor) {
+                    @Deprecated("Deprecated in Java")
+                    override fun onCallStateChanged(state: Int, phoneNumber: String?) = onCallState(state)
+                }.also { telephonyManager.listen(it, PhoneStateListener.LISTEN_CALL_STATE) }
+            }
         }
 
         if (config.showPhoneBatteryInWidget) {
@@ -2901,7 +2911,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
                 override fun onServiceDisconnected(profile: Int) {}
             }, BluetoothProfile.A2DP)
-            try {
+            if (Build.VERSION.SDK_INT >= 37) try {
                 device?.disconnect()
             } catch (e: Exception) {
                 Log.w(TAG, "device.disconnect() failed, $e")
@@ -3092,7 +3102,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
 
         if (config.deviceName != name) {
             config.deviceName = name
-            device?.alias = name
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) device?.alias = name
             sharedPreferences.edit { putString("name", name) }
         }
 
@@ -3132,8 +3142,12 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        if (checkSelfPermission("android.permission.READ_PHONE_STATE") == PackageManager.PERMISSION_GRANTED) {
-            telephonyManager.unregisterTelephonyCallback(phoneStateListener)
+        when (val listener = phoneStateListener) {
+            null -> {}
+            is PhoneStateListener -> telephonyManager.listen(listener, PhoneStateListener.LISTEN_NONE)
+            else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                telephonyManager.unregisterTelephonyCallback(listener as TelephonyCallback)
+            }
         }
 //        isConnectedLocally = false
 //        CrossDevice.isAvailable = true

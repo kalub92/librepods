@@ -68,7 +68,7 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
             defaultConfig {
-                minSdk = 33
+                minSdk = 30
             }
         }
         debug {
@@ -77,7 +77,7 @@ android {
             }
             versionNameSuffix = "-debug"
             defaultConfig {
-                minSdk = 33
+                minSdk = 30
             }
         }
     }

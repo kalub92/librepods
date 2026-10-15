@@ -37,6 +37,18 @@ extern "C" {
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+// the Bluetooth process and its stack library share our bitness (32-bit on armv7-only devices)
+#ifdef __LP64__
+using Elf_Ehdr = Elf64_Ehdr;
+using Elf_Shdr = Elf64_Shdr;
+using Elf_Sym = Elf64_Sym;
+#else
+using Elf_Ehdr = Elf32_Ehdr;
+using Elf_Shdr = Elf32_Shdr;
+using Elf_Sym = Elf32_Sym;
+#endif
+#define ELF_ST_TYPE(i) ((i) & 0xf)
+
 static HookFunType hook_func = nullptr;
 
 static uint8_t (*original_l2c_fcr_chk_chan_modes)(void *) = nullptr;
@@ -199,15 +211,15 @@ findSymbolOffsetDynsym(const std::vector<uint8_t> &elf, const char *symbol_subst
 
     LOGI("findSymbolOffsetDynsym called with %s", symbol_substring);
 
-    auto *eh = reinterpret_cast<const Elf64_Ehdr *>(elf.data());
-    auto *shdr = reinterpret_cast<const Elf64_Shdr *>(
+    auto *eh = reinterpret_cast<const Elf_Ehdr *>(elf.data());
+    auto *shdr = reinterpret_cast<const Elf_Shdr *>(
             elf.data() + eh->e_shoff);
 
     const char *shstr = reinterpret_cast<const char *>(
             elf.data() + shdr[eh->e_shstrndx].sh_offset);
 
-    const Elf64_Shdr *dynsym = nullptr;
-    const Elf64_Shdr *dynstr = nullptr;
+    const Elf_Shdr *dynsym = nullptr;
+    const Elf_Shdr *dynstr = nullptr;
 
     for (int i = 0; i < eh->e_shnum; ++i) {
         const char *secname = shstr + shdr[i].sh_name;
@@ -223,20 +235,20 @@ findSymbolOffsetDynsym(const std::vector<uint8_t> &elf, const char *symbol_subst
         return 0;
     }
 
-    auto *symbols = reinterpret_cast<const Elf64_Sym *>(
+    auto *symbols = reinterpret_cast<const Elf_Sym *>(
             elf.data() + dynsym->sh_offset);
 
     const char *strings = reinterpret_cast<const char *>(
             elf.data() + dynstr->sh_offset);
 
-    size_t count = dynsym->sh_size / sizeof(Elf64_Sym);
+    size_t count = dynsym->sh_size / sizeof(Elf_Sym);
 
     LOGI("findSymbolOffsetDynsym: scanning %zu symbols", count);
 
     for (size_t i = 0; i < count; ++i) {
         const char *name = strings + symbols[i].st_name;
 
-        if (strstr(name, symbol_substring) && ELF64_ST_TYPE(symbols[i].st_info) == STT_FUNC) {
+        if (strstr(name, symbol_substring) && ELF_ST_TYPE(symbols[i].st_info) == STT_FUNC) {
 
             LOGI("findSymbolOffsetDynsym: matched %s @ 0x%lx", name,
                  (unsigned long) symbols[i].st_value);
@@ -253,15 +265,15 @@ static uint64_t findSymbolOffset(const std::vector<uint8_t> &elf, const char *sy
 
     LOGI("findSymbolOffset called with symbol_substring: %s", symbol_substring);
 
-    auto *eh = reinterpret_cast<const Elf64_Ehdr *>(elf.data());
-    auto *shdr = reinterpret_cast<const Elf64_Shdr *>(
+    auto *eh = reinterpret_cast<const Elf_Ehdr *>(elf.data());
+    auto *shdr = reinterpret_cast<const Elf_Shdr *>(
             elf.data() + eh->e_shoff);
 
     const char *shstr = reinterpret_cast<const char *>(
             elf.data() + shdr[eh->e_shstrndx].sh_offset);
 
-    const Elf64_Shdr *symtab = nullptr;
-    const Elf64_Shdr *strtab = nullptr;
+    const Elf_Shdr *symtab = nullptr;
+    const Elf_Shdr *strtab = nullptr;
 
     LOGI("findSymbolOffset: parsing ELF sections");
     for (int i = 0; i < eh->e_shnum; ++i) {
@@ -278,19 +290,19 @@ static uint64_t findSymbolOffset(const std::vector<uint8_t> &elf, const char *sy
     }
     LOGI("findSymbolOffset: found symtab and strtab");
 
-    auto *symbols = reinterpret_cast<const Elf64_Sym *>(
+    auto *symbols = reinterpret_cast<const Elf_Sym *>(
             elf.data() + symtab->sh_offset);
 
     const char *strings = reinterpret_cast<const char *>(
             elf.data() + strtab->sh_offset);
 
-    size_t count = symtab->sh_size / sizeof(Elf64_Sym);
+    size_t count = symtab->sh_size / sizeof(Elf_Sym);
 
     LOGI("findSymbolOffset: scanning %zu symbols", count);
     for (size_t i = 0; i < count; ++i) {
         const char *name = strings + symbols[i].st_name;
 
-        if (strstr(name, symbol_substring) && ELF64_ST_TYPE(symbols[i].st_info) == STT_FUNC) {
+        if (strstr(name, symbol_substring) && ELF_ST_TYPE(symbols[i].st_info) == STT_FUNC) {
 
             LOGI("findSymbolOffset: matched symbol %s at 0x%lx", name,
                  (unsigned long) symbols[i].st_value);
@@ -336,8 +348,8 @@ static bool hookLibrary(const char *libname) {
     read(fd, file.data(), st.st_size);
     close(fd);
 
-    auto *eh = reinterpret_cast<Elf64_Ehdr *>(file.data());
-    auto *shdr = reinterpret_cast<Elf64_Shdr *>(
+    auto *eh = reinterpret_cast<Elf_Ehdr *>(file.data());
+    auto *shdr = reinterpret_cast<Elf_Shdr *>(
             file.data() + eh->e_shoff);
 
     const char *shstr = reinterpret_cast<const char *>(
@@ -404,14 +416,17 @@ static bool hookLibrary(const char *libname) {
 static void on_library_loaded(const char *name, void *) {
     LOGI("on_library_loaded called with name: %s", name);
 
-    if (strstr(name, "libbluetooth_jni.so")) {
-        LOGI("Bluetooth JNI loaded");
-        hookLibrary("libbluetooth_jni.so");
-    }
+    static bool hooked = false;
+    if (hooked || !strstr(name, "bluetooth")) return;
 
-    if (strstr(name, "libbluetooth_qti.so")) {
-        LOGI("Bluetooth QTI loaded");
-        hookLibrary("libbluetooth_qti.so");
+    // Android 13+: stack is in libbluetooth_jni.so. Android 12 and below: libbluetooth.so
+    // (libbluetooth_qti.so on QTI), usually pulled in as a dependency of a JNI lib that
+    // may be vendor-named (e.g. MediaTek's libmtkbluetooth_jni.so)
+    for (const char *lib : {"libbluetooth_jni.so", "libbluetooth_qti.so", "libbluetooth.so"}) {
+        if (hookLibrary(lib)) {
+            hooked = true;
+            return;
+        }
     }
 }
 
